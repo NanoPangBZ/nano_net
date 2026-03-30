@@ -635,7 +635,7 @@ void nano_net_run_with_port_input( nano_net_host_handle_t host , nano_net_port_h
     (void)input_size;
 }
 
-uint32_t nano_net_target_direct_write( nano_net_host_handle_t host , uint32_t target_host_id , const uint8_t* data , uint32_t size )
+uint32_t nano_net_target_direct_write( nano_net_host_handle_t host , nano_net_host_id_t target_host_id , const uint8_t* data , uint32_t size )
 {
     if( host == NULL || data == NULL || size == 0 )
     {
