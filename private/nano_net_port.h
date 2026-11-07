@@ -43,6 +43,14 @@ const char* nano_net_port_get_name( nano_net_port_handle_t port );
 void nano_net_port_unpack( nano_net_port_handle_t port);
 
 /**
+ * @brief 解包端口数据，并传入输入数据
+ * @param port 端口句柄
+ * @param input_data 输入数据指针
+ * @param input_size 输入数据长度
+*/
+void nano_net_port_unpack_with_input( nano_net_port_handle_t port, uint8_t* input_data, uint16_t input_size );
+
+/**
  * @brief 发送消息包
  * @param port 端口句柄
  * @param pkg 消息包指针

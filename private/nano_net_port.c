@@ -1,6 +1,6 @@
 #include "nano_net_port.h"
 #include "nano_net_packager.h"
-#include "../nano_net_cfg.h"
+#include "./nano_net_internal_cfg.h"
 #include "./ll_depend/nano_net_ll_systime.h"
 #include <string.h>
 
@@ -15,7 +15,7 @@
 typedef struct nano_net_port_t{
     const char* name;           //端口名称
     nano_net_port_attr_t attr;  //端口属性
-    nano_net_packager_handle_t packager; //打包器句柄
+    packager_handle_t packager; //打包器句柄
 
     void* opt_ctx;              //端口可选上下文指针
     uint32_t (*write)( void* opt_ctx, const uint8_t* data, uint32_t size ); //发送函数
@@ -49,23 +49,47 @@ nano_net_port_handle_t nano_net_port_create( nano_net_port_desc_t* desc)
     port->name = desc->name;
     port->attr = desc->attr;
 
-    //创建打包器
-    nano_net_packager_desc_t packager_desc;
+    /* 准备打包/解包器描述符 */
+    packager_desc_t packager_desc;
     memset(&packager_desc,0,sizeof(packager_desc));
-    packager_desc.type = PACKAGER_TYPE_YXZZ;
-    packager_desc.pack_buf = (desc->attr & NANO_NET_PORT_ATTR_WRITEABLE) ? desc->pack_buf : NULL;
-    packager_desc.pack_buf_size = (desc->attr & NANO_NET_PORT_ATTR_WRITEABLE) ? desc->pack_buf_size : 0;
-    packager_desc.unpack_buf = (desc->attr & NANO_NET_PORT_ATTR_READABLE) ? desc->unpack_buf : NULL;
-    packager_desc.unpack_buf_size =( desc->attr & NANO_NET_PORT_ATTR_READABLE) ? desc->unpack_buf_size : 0;
 
-    port->packager = nano_net_packager_create( &packager_desc );
+    /* 匹配打包协议 */
+    uint32_t protocol = desc->attr & NANO_NET_PORT_ATTR_PACK_PROTOCOL_MASK;
+    if( protocol == NANO_NET_PORT_ATTR_PACK_PROTOCOL_DEFAULT )
+    {
+        packager_desc.type = PACKAGER_TYPE_DEFAULT;
+    }
+    else
+    {
+        ERROR_LOG("unsupported pack protocol: %u", protocol);
+        goto err_recycle;
+    }
+
+    /* 配置打包器desc */
+    if( desc->attr & NANO_NET_PORT_ATTR_WRITEABLE )
+    {
+        packager_desc.enable_pack = 1;
+        packager_desc.pack_buf = (desc->attr & NANO_NET_PORT_ATTR_WRITEABLE) ? desc->pack_buf : NULL;
+        packager_desc.pack_buf_size = (desc->attr & NANO_NET_PORT_ATTR_WRITEABLE) ? desc->pack_buf_size : 0;
+    }
+
+    /* 配置解包器desc */
+    if( desc->attr & NANO_NET_PORT_ATTR_READABLE )
+    {
+        packager_desc.enable_unpack = 1;
+        packager_desc.unpack_buf = (desc->attr & NANO_NET_PORT_ATTR_READABLE) ? desc->unpack_buf : NULL;
+        packager_desc.unpack_buf_size =( desc->attr & NANO_NET_PORT_ATTR_READABLE) ? desc->unpack_buf_size : 0;
+    }
+
+    /* 创建打包/解包器 */
+    port->packager = packager_create( &packager_desc );
     if( port->packager == NULL )
     {
         ERROR_LOG("create packager for port(%s) failed", desc->name);
         goto err_recycle;
     }
     //注册解包器回调函数
-    nano_net_packager_register_unpack_cb( port->packager, port, packager_unpack_callback );
+    packager_register_unpack_cb( port->packager, port, packager_unpack_callback );
 
     //初始化端口函数指针
     port->opt_ctx = desc->opt_ctx;
@@ -93,7 +117,7 @@ void nano_net_port_destroy( nano_net_port_handle_t port )
         //销毁打包器
         if( port->packager != NULL )
         {
-            nano_net_packager_destroy( port->packager );
+            packager_destroy( port->packager );
         }
 
         //释放端口对象
@@ -138,16 +162,6 @@ const char* nano_net_port_get_name( nano_net_port_handle_t port )
 */
 void nano_net_port_unpack( nano_net_port_handle_t port)
 {
-    if( port == NULL )
-    {
-        return;
-    }
-
-    if( (port->attr & NANO_NET_PORT_ATTR_READABLE) == 0 )
-    {
-        return;
-    }
-
     uint8_t read_buf[ UNPACK_ONCE_SIZE ];
     int16_t read_len = 0;
     uint8_t read_cnt = 0;
@@ -160,7 +174,7 @@ void nano_net_port_unpack( nano_net_port_handle_t port)
         }
 
         port->last_recv_time = nano_net_ll_get_sys_time_ms();
-        nano_net_packager_unpack( port->packager, read_buf, (uint16_t)read_len );
+        nano_net_port_unpack_with_input( port, read_buf, (uint16_t)read_len );
 
         if( read_cnt++ > UNPACK_MAX_POLLING_CNT )
         {
@@ -173,8 +187,31 @@ void nano_net_port_unpack( nano_net_port_handle_t port)
 
     if( nano_net_ll_get_sys_time_ms() - port->last_recv_time > NANO_NET_PORT_RECV_TIMEOUT_MS )
     {
-        nano_net_packager_reset( port->packager );
+        packager_reset( port->packager );
     }
+}
+
+void nano_net_port_unpack_with_input( nano_net_port_handle_t port, uint8_t* input_data, uint16_t input_size )
+{
+    if( port == NULL || input_data == NULL || input_size == 0 )
+    {
+        ERROR_LOG("port is NULL or input_data is NULL or input_size is 0");
+        return;
+    }
+
+    if( (port->attr & NANO_NET_PORT_ATTR_READABLE) == 0 )
+    {
+        ERROR_LOG("port(%s) is not readable", port->name);
+        return;
+    }
+
+    if( port->read == NULL )
+    {
+        ERROR_LOG("port(%s) read function is not set", port->name);
+        return;
+    }
+
+    packager_unpack( port->packager, input_data, input_size );
 }
 
 /**
@@ -184,11 +221,6 @@ void nano_net_port_unpack( nano_net_port_handle_t port)
 */
 void nano_net_port_send_msg_package( nano_net_port_handle_t port, msg_package_t* pkg)
 {
-    if( port == NULL || pkg == NULL )
-    {
-        return;
-    }
-
     nano_net_port_send_msg_packages( port , pkg , 1 );
 }
 
@@ -201,11 +233,24 @@ void nano_net_port_send_msg_packages( nano_net_port_handle_t port, msg_package_t
 {
     if( port == NULL || pkgs == NULL )
     {
+        ERROR_LOG("port is NULL or pkgs is NULL");
+        return;
+    }
+
+    if( (port->attr & NANO_NET_PORT_ATTR_WRITEABLE) == 0 )
+    {
+        ERROR_LOG("port(%s) is not writeable", port->name);
+        return;
+    }
+
+    if( port->write == NULL )
+    {
+        ERROR_LOG("port(%s) write function is not set", port->name);
         return;
     }
 
     uint32_t out_size = 0;
-    uint8_t* packed_data = nano_net_packager_pack( port->packager, pkgs, pkg_cnt, &out_size );
+    uint8_t* packed_data = packager_pack( port->packager, pkgs, pkg_cnt, &out_size );
     if( packed_data != NULL && out_size > 0 )
     {
         port->write( port->opt_ctx, packed_data, out_size );

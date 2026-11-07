@@ -3,10 +3,17 @@
 #include <stdint.h>
 #include "nano_net_protocol_def.h"
 
-//网络主机句柄
-typedef struct nano_net_host_t* nano_net_host_handle_t;
+/**
+ * @brief 通信主机软件api定义
+ * @details 通信主机用于在不同设备间传递统一格式的msg,每个设备上可以拥有多个通信主机,每个通信主机有唯一的ID。
+ * 通信机制仅支持树形结构，不支持网状结构。HOST_ID_MAIN_CONTROLLER必须为树根节点。每个产品设备上必须存在一个
+ * HOST_ID_MAIN_CONTROLLER的host，客户端只访问HOST_ID_MAIN_CONTROLLER。
+*/
 
-//网络节点端口句柄
+//通信主机句柄
+typedef struct nano_net_t* nano_net_host_handle_t;
+
+//通信主机端口句柄
 typedef struct nano_net_port_t* nano_net_port_handle_t;
 
 //通信主机端口属性
@@ -15,11 +22,22 @@ typedef enum nano_net_port_attr_e{
     NANO_NET_PORT_ATTR_READABLE    = 0x01 << 0,      //端口可读
     //bits 1: 是否可写
     NANO_NET_PORT_ATTR_WRITEABLE    = 0x01 << 1,      //端口可写
+    //bits [2:4] : 打包协议类型
+    NANO_NET_PORT_ATTR_PACK_PROTOCOL_MASK = 0x07 << 2,
+    NANO_NET_PORT_ATTR_PACK_PROTOCOL_DEFAULT = 0x00 << 2,       //有为工作室打包协议
+    NANO_NET_PORT_ATTR_PACK_PROTOCOL_RESERVED = 0x01 << 2,   //保留
+    NANO_NET_PORT_ATTR_PACK_PROTOCOL_RESERVED2 = 0x02 << 2,  //保留
+    NANO_NET_PORT_ATTR_PACK_PROTOCOL_RESERVED3 = 0x03 << 2,  //保留
+    NANO_NET_PORT_ATTR_PACK_PROTOCOL_RESERVED4 = 0x04 << 2,  //保留
+    NANO_NET_PORT_ATTR_PACK_PROTOCOL_RESERVED5 = 0x05 << 2,  //保留
+    NANO_NET_PORT_ATTR_PACK_PROTOCOL_RESERVED6 = 0x06 << 2,  //保留
+    NANO_NET_PORT_ATTR_PACK_PROTOCOL_RESERVED7 = 0x07 << 2,  //保留
 
-    //bits [2:31] : 保留
+    //bits [5:31] : 保留
 
-    //默认属性 可读可写
-    NANO_NET_PORT_ATTR_DEFAULT     = NANO_NET_PORT_ATTR_READABLE | NANO_NET_PORT_ATTR_WRITEABLE,
+
+    //默认属性 可读可写 使用your_way_studio打包协议
+    NANO_NET_PORT_ATTR_DEFAULT     = NANO_NET_PORT_ATTR_READABLE | NANO_NET_PORT_ATTR_WRITEABLE | NANO_NET_PORT_ATTR_PACK_PROTOCOL_DEFAULT,
 }nano_net_port_attr_e;
 typedef uint32_t nano_net_port_attr_t;
 
@@ -46,7 +64,7 @@ typedef struct nano_net_ll_depend_t{
 
 //通信主机描述符
 typedef struct nano_net_host_desc_t{
-    nano_net_host_id_t host_id;             //主机ID
+    nano_net_host_id_t host_id;                    //本主机ID
 }nano_net_host_desc_t;
 
 //通信消息结构体
@@ -224,7 +242,7 @@ void nano_net_run_with_port_input( nano_net_host_handle_t host , nano_net_port_h
  * @return 写入的数据长度
  * @note 无法多级路由转发，性能较高
 */
-uint32_t nano_net_target_direct_write( nano_net_host_handle_t host , nano_net_host_id_t target_host_id , const uint8_t* data , uint32_t size );
+uint32_t nano_net_target_direct_write( nano_net_host_handle_t host , uint32_t target_host_id , const uint8_t* data , uint32_t size );
 
 /**
  * @brief 获取通信主机已使用的内存大小

@@ -8,7 +8,7 @@
 #define MALLOC(_size)       nano_net_ll_heap_malloc(_size)
 #define FREE(_ptr)          nano_net_ll_heap_free(_ptr)
 
-#include "../../nano_net_cfg.h"
+#include "../nano_net_internal_cfg.h"
 #define INFO_LOG(...)   NANO_NET_INFO_LOG(__VA_ARGS__)
 #define WARN_LOG(...)   NANO_NET_WARN_LOG(__VA_ARGS__)
 #define ERROR_LOG(...)  NANO_NET_ERROR_LOG(__VA_ARGS__)
@@ -33,7 +33,7 @@ typedef enum pack_byte_e{
 }pack_byte_e;
 typedef uint8_t pack_byte_t;
 
-typedef struct nano_net_packager_impl_t{
+typedef struct packager_impl_t{
     uint8_t* unpack_buf;
     uint32_t unpack_buf_size;
     uint8_t* pack_buf;
@@ -51,25 +51,31 @@ typedef struct nano_net_packager_impl_t{
 
     uint8_t is_static_pack_buf;   //0:内部malloc  1:外部静态buf
     uint8_t is_static_unpack_buf; //0:内部malloc  1:外部静态buf
-}nano_net_packager_impl_t;
+}packager_impl_t;
 
-static nano_net_packager_impl_handle_t create(nano_net_packager_desc_t* desc)
+static nano_net_packager_impl_handle_t create(packager_desc_t* desc)
 {
-    if( desc->type != PACKAGER_TYPE_YXZZ )
+    if( desc->type != PACKAGER_TYPE_DEFAULT )
     {
         return NULL;
     }
 
-    nano_net_packager_impl_t* impl = (nano_net_packager_impl_t*)MALLOC( sizeof(nano_net_packager_impl_t) );
+    packager_impl_t* impl = (packager_impl_t*)MALLOC( sizeof(packager_impl_t) );
     if( impl == NULL )
     {
-        ERROR_LOG("malloc nano_net_packager_impl_t failed");
+        ERROR_LOG("malloc packager_impl_t failed");
         return NULL;
     }
-    memset( impl, 0, sizeof(nano_net_packager_impl_t) );
+    memset( impl, 0, sizeof(packager_impl_t) );
 
-    if( desc->pack_buf_size > 0 )
+    if( desc->enable_pack )
     {
+        if( desc->pack_buf_size < 14 )
+        {
+            ERROR_LOG("pack_buf_size(%u) too small", desc->pack_buf_size);
+            goto err_recycle;
+        }
+
         if( desc->pack_buf != NULL )
         {
             impl->pack_buf = desc->pack_buf;
@@ -87,8 +93,14 @@ static nano_net_packager_impl_handle_t create(nano_net_packager_desc_t* desc)
     }
     impl->pack_buf_size = desc->pack_buf_size;
 
-    if( desc->unpack_buf_size > 0 )
+    if( desc->enable_unpack )
     {
+        if( desc->unpack_buf_size < 14 )
+        {
+            ERROR_LOG("unpack_buf_size(%u) too small", desc->unpack_buf_size);
+            goto err_recycle;
+        }
+
         if( desc->unpack_buf != NULL )
         {
             impl->unpack_buf = desc->unpack_buf;
@@ -106,12 +118,6 @@ static nano_net_packager_impl_handle_t create(nano_net_packager_desc_t* desc)
     }
     impl->unpack_buf_size = desc->unpack_buf_size;
 
-    // unpack_buf 至少需要容纳一个完整的最小包：包头(12字节) + CRC(2字节)
-    if( impl->unpack_buf_size < 14 )
-    {
-        ERROR_LOG("unpack_buf_size(%u) too small", impl->unpack_buf_size);
-        goto err_recycle;
-    }
     impl->unpack_buf_used_ptr = impl->unpack_buf;
     impl->waiting_byte = PACK_BYTE_MAGIC_HEAD_1;
     impl->unpacked_pkg.msg = &impl->unpacked_msg;
@@ -125,7 +131,7 @@ err_recycle:
 
 static void destroy(nano_net_packager_impl_handle_t handle)
 {
-    nano_net_packager_impl_t* impl = (nano_net_packager_impl_t*)handle;
+    packager_impl_t* impl = (packager_impl_t*)handle;
     if( impl )
     {
         if( impl->unpack_buf && impl->is_static_unpack_buf == 0 )

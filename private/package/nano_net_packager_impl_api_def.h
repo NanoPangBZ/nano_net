@@ -2,10 +2,10 @@
 
 #include "../nano_net_packager.h"
 
-typedef struct nano_net_packager_impl_t* nano_net_packager_impl_handle_t;
+typedef struct packager_impl_t* nano_net_packager_impl_handle_t;
 
 typedef struct nano_net_packager_api_t{
-    nano_net_packager_impl_handle_t (*create)(nano_net_packager_desc_t* config);
+    nano_net_packager_impl_handle_t (*create)(packager_desc_t* config);
     void (*destroy)(nano_net_packager_impl_handle_t handle);
     /**
      * @brief 注册解包回调函数

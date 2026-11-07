@@ -1,5 +1,5 @@
 #include "nano_net.h"
-#include "nano_net_cfg.h"
+#include "./private/nano_net_internal_cfg.h"
 #include <string.h>
 
 #include "./private/nano_net_port.h"
@@ -8,8 +8,8 @@
 #include "./private/ll_depend/nano_net_ll_heap.h"
 
 #define NANO_NET_VERSION_MAJOR      1
-#define NANO_NET_VERSION_MINOR      0
-#define NANO_NET_VERSION_PATCH      8
+#define NANO_NET_VERSION_MINOR      1
+#define NANO_NET_VERSION_PATCH      0
 #define NANO_NET_VERSION_RELEASE    0
 
 #define DEBUG_LOG(...)  NANO_NET_DEBUG_LOG(__VA_ARGS__)
@@ -35,7 +35,7 @@ typedef struct msg_handler_t{
 }msg_handler_t;
 
 //通信主机结构体
-typedef struct nano_net_host_t{
+typedef struct nano_net_t{
     nano_net_host_id_t host_id;
     void* default_cb_ctx;                       //默认消息处理函数的用户上下文指针
     nano_net_msg_handler_t default_msg_handler; //默认消息处理函数
@@ -43,7 +43,7 @@ typedef struct nano_net_host_t{
     nano_net_list_handle_t routable_host_list;  //可路由主机列表
     nano_net_list_handle_t msg_handler_list;    //消息处理函数列表
     uint8_t seq;                                //消息序列号
-}nano_net_host_t;
+}nano_net_t;
 
 void nano_net_init( nano_net_ll_depend_t* ll_depend )
 {
@@ -53,7 +53,7 @@ void nano_net_init( nano_net_ll_depend_t* ll_depend )
 
 nano_net_host_handle_t nano_net_create( nano_net_host_desc_t* desc )
 {
-    nano_net_host_t* host = NULL;
+    nano_net_t* host = NULL;
 
     if( desc == NULL )
     {
@@ -61,13 +61,13 @@ nano_net_host_handle_t nano_net_create( nano_net_host_desc_t* desc )
     }
 
     //创建主机对象
-    host = (nano_net_host_t*)MALLOC( sizeof(nano_net_host_t) );
+    host = (nano_net_t*)MALLOC( sizeof(nano_net_t) );
     if( host == NULL )
     {
-        ERROR_LOG("malloc nano_net_host_t failed");
+        ERROR_LOG("malloc nano_net_t failed");
         goto err_recycle;
     }
-    memset( host, 0, sizeof(nano_net_host_t) );
+    memset( host, 0, sizeof(nano_net_t) );
     host->host_id = desc->host_id;
 
     nano_net_list_desc_t list_desc;
@@ -131,7 +131,7 @@ static void nano_net_port_unpack_callback(  nano_net_port_handle_t port,
                                             void* cb_ctx,
                                             msg_package_t* pkg )
 {
-    nano_net_host_t* host = (nano_net_host_t*)cb_ctx;
+    nano_net_t* host = (nano_net_t*)cb_ctx;
 
     if( host == NULL || pkg == NULL )
     {
@@ -630,12 +630,10 @@ void nano_net_run( nano_net_host_handle_t host )
 void nano_net_run_with_port_input( nano_net_host_handle_t host , nano_net_port_handle_t port , uint8_t* input_data , uint16_t input_size )
 {
     (void)host;
-    (void)port;
-    (void)input_data;
-    (void)input_size;
+    nano_net_port_unpack_with_input( port, input_data, input_size );
 }
 
-uint32_t nano_net_target_direct_write( nano_net_host_handle_t host , nano_net_host_id_t target_host_id , const uint8_t* data , uint32_t size )
+uint32_t nano_net_target_direct_write( nano_net_host_handle_t host , uint32_t target_host_id , const uint8_t* data , uint32_t size )
 {
     if( host == NULL || data == NULL || size == 0 )
     {
@@ -668,9 +666,9 @@ uint8_t nano_net_get_version( uint8_t* major, uint8_t* minor, uint8_t* patch )
 
 uint8_t nano_net_get_protocol_version( uint8_t* major, uint8_t* minor, uint8_t* patch )
 {
-    if( *major ) *major = NANO_NET_PROTOCOL_VERSION_MAJOR;
-    if( *minor ) *minor = NANO_NET_PROTOCOL_VERSION_MINOR;
-    if( *patch ) *patch = NANO_NET_PROTOCOL_VERSION_PATCH;
+    if( major ) *major = NANO_NET_PROTOCOL_VERSION_MAJOR;
+    if( minor ) *minor = NANO_NET_PROTOCOL_VERSION_MINOR;
+    if( patch ) *patch = NANO_NET_PROTOCOL_VERSION_PATCH;
 
     return NANO_NET_PROTOCOL_VERSION_RELEASE;
 }

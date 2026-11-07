@@ -1,10 +1,12 @@
 #pragma once
 
 /*************************************************文本日志配置*****************************************************************/
-#define NANO_NET_DEBUG_LOG(...)
-#define NANO_NET_INFO_LOG(...)
-#define NANO_NET_WARN_LOG(...)
-#define NANO_NET_ERROR_LOG(...)
+#include <stdio.h>
+#include "./private/ll_depend/nano_net_ll_systime.h"
+#define NANO_NET_DEBUG_LOG(...) printf("[DEBUG] %d :", nano_net_ll_get_sys_time_ms());printf(__VA_ARGS__);printf("\r\n")
+#define NANO_NET_INFO_LOG(...)  printf("[INFO] %d :", nano_net_ll_get_sys_time_ms());printf(__VA_ARGS__);printf("\r\n")
+#define NANO_NET_WARN_LOG(...)  printf("[WARN] %d :", nano_net_ll_get_sys_time_ms());printf(__VA_ARGS__);printf("\r\n")
+#define NANO_NET_ERROR_LOG(...) printf("[ERROR] %d :", nano_net_ll_get_sys_time_ms());printf(__VA_ARGS__);printf("\r\n")
 
 /**************************端口功能相关配置*************************************/
 //端口接收超时时间，单位：毫秒

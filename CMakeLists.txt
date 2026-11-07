@@ -22,6 +22,7 @@ set(ALL_SOURCES
     nano_net.c
     private/nano_net_packager.c
     private/nano_net_port.c
+    private/nano_net_cfg_static_check.c
     private/lib/nano_net_crc16.c
     private/lib/nano_net_list.c
     private/lib/nano_net_ringbuf.c

@@ -49,7 +49,7 @@ void* nano_net_ll_heap_malloc(size_t size)
     }
     mem_pool.used_ptr += size + padding;
 
-    return alloc_ptr <= (mem_pool.buff + mem_pool.size) ? alloc_ptr : NULL;
+    return ( alloc_ptr + size ) <= (mem_pool.buff + mem_pool.size) ? alloc_ptr : NULL;
 }
 
 void nano_net_ll_heap_free(void* ptr)
